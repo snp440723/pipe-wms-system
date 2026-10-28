@@ -1198,7 +1198,6 @@
                     if (map[key]) map[key].quantity -= Number(out.quantity);
                 }
             });
-            // กรองเฉพาะรายการที่จำนวนมากกว่า 0 ออกมาแสดง
             return Object.values(map).filter(item => item.quantity > 0);
         }
 
@@ -1311,7 +1310,7 @@
             const tbody = document.getElementById('rm_print_tbody');
             if (!tbody) return;
             const query = (document.getElementById('rm_print_search')?.value || '').toLowerCase();
-            const list = getRawmatDashboardStockList(); // ใช้เฉพาะรายการที่ยอดคงเหลือมากกว่า 0
+            const list = getRawmatDashboardStockList();
             tbody.innerHTML = list.map((item, idx) => {
                 const match = (item.id && item.id.toLowerCase().includes(query)) || item.material.toLowerCase().includes(query) || item.description.toLowerCase().includes(query) || item.location.toLowerCase().includes(query);
                 return `
@@ -1848,6 +1847,9 @@
                             <td class="p-2.5 border-r border-slate-900 font-semibold">${it.description || '-'}</td>
                             <td class="p-2.5 text-center border-r border-slate-900 font-bold">${it.quantity || 0}</td>
                             <td class="p-2.5 text-center border-r border-slate-900">${it.unit || 'PC.'}</td>
+                            <td class="p-2.5 text-center border-r border-slate-900"></td>
+                            <td class="p-2.5 text-center border-r border-slate-900"></td>
+                            <td class="p-2.5 text-center border-r border-slate-900"></td>
                             <td class="p-2.5 text-center"></td>
                         </tr>
                     `;
@@ -1867,12 +1869,15 @@
                             <table class="w-full text-xs text-left border-collapse border border-slate-900 mt-2">
                                 <thead>
                                     <tr class="bg-slate-50 text-slate-900 font-bold border-b border-slate-900 uppercase">
-                                        <th class="p-2.5 border-r border-slate-900 text-center w-12">ลำดับ</th>
+                                        <th class="p-2.5 border-r border-slate-900 text-center w-10">ลำดับ</th>
                                         <th class="p-2.5 border-r border-slate-900">MATERIAL</th>
                                         <th class="p-2.5 border-r border-slate-900">DESCRIPTION</th>
-                                        <th class="p-2.5 border-r border-slate-900 text-center w-24">QUANTITY</th>
-                                        <th class="p-2.5 border-r border-slate-900 text-center w-16">UNIT</th>
-                                        <th class="p-2.5 text-center w-20">OUT</th>
+                                        <th class="p-2.5 border-r border-slate-900 text-center w-16">QUANTITY</th>
+                                        <th class="p-2.5 border-r border-slate-900 text-center w-14">UNIT</th>
+                                        <th class="p-2.5 border-r border-slate-900 text-center w-14">OUT</th>
+                                        <th class="p-2.5 border-r border-slate-900 text-center w-14">OUT</th>
+                                        <th class="p-2.5 border-r border-slate-900 text-center w-14">OUT</th>
+                                        <th class="p-2.5 text-center w-14">OUT</th>
                                     </tr>
                                 </thead>
                                 <tbody class="divide-y divide-slate-900">${rows}</tbody>
@@ -1881,6 +1886,9 @@
                                         <td colspan="3" class="p-2.5 text-right border-r border-slate-900 uppercase">รวมทั้งหมด (TOTAL):</td>
                                         <td class="p-2.5 text-center border-r border-slate-900">${total}</td>
                                         <td class="p-2.5 text-center border-r border-slate-900">-</td>
+                                        <td class="p-2.5 text-center border-r border-slate-900"></td>
+                                        <td class="p-2.5 text-center border-r border-slate-900"></td>
+                                        <td class="p-2.5 text-center border-r border-slate-900"></td>
                                         <td class="p-2.5 text-center"></td>
                                     </tr>
                                 </tfoot>
