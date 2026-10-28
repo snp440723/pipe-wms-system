@@ -63,6 +63,10 @@
             
             #rawmat-print-section, #rawmat-print-section * { visibility: visible !important; }
             #rawmat-print-section { position: absolute; left: 0; top: 0; width: 210mm; }
+
+            #printPreviewModal, #printPreviewModal * { visibility: visible !important; }
+            #printPreviewModal { position: absolute; left: 0; top: 0; width: 210mm; background: white !important; }
+            #printPreviewModal .no-print { display: none !important; }
             
             .stock-card-page { 
                 visibility: visible !important; 
@@ -89,7 +93,7 @@
                 width: 210mm !important; 
                 height: 297mm !important; 
                 margin: 0 !important; 
-                padding: 15mm !important; 
+                padding: 12mm 15mm !important; 
                 box-shadow: none !important; 
                 border: none !important; 
                 display: flex !important; 
@@ -1842,59 +1846,62 @@
                     total += Number(it.quantity || 0);
                     return `
                         <tr>
-                            <td class="p-2.5 text-center border-r border-slate-900 font-semibold">${idx + 1}</td>
-                            <td class="p-2.5 border-r border-slate-900 font-bold">${it.material || '-'}</td>
-                            <td class="p-2.5 border-r border-slate-900 font-semibold">${it.description || '-'}</td>
-                            <td class="p-2.5 text-center border-r border-slate-900 font-bold">${it.quantity || 0}</td>
-                            <td class="p-2.5 text-center border-r border-slate-900">${it.unit || 'PC.'}</td>
-                            <td class="p-2.5 text-center border-r border-slate-900"></td>
-                            <td class="p-2.5 text-center border-r border-slate-900"></td>
-                            <td class="p-2.5 text-center border-r border-slate-900"></td>
-                            <td class="p-2.5 text-center"></td>
+                            <td class="p-2 text-center border-r border-slate-900 font-semibold">${idx + 1}</td>
+                            <td class="p-2 border-r border-slate-900 font-bold">${it.material || '-'}</td>
+                            <td class="p-2 border-r border-slate-900 font-semibold">${it.description || '-'}</td>
+                            <td class="p-2 text-center border-r border-slate-900 font-bold">${it.quantity || 0}</td>
+                            <td class="p-2 text-center border-r border-slate-900">${it.unit || 'PC.'}</td>
+                            <td class="p-2 text-center border-r border-slate-900"></td>
+                            <td class="p-2 text-center border-r border-slate-900"></td>
+                            <td class="p-2 text-center border-r border-slate-900"></td>
+                            <td class="p-2 text-center border-r border-slate-900"></td>
+                            <td class="p-2 text-center"></td>
                         </tr>
                     `;
                 }).join('');
 
                 container.insertAdjacentHTML('beforeend', `
-                    <div class="print-page bg-white text-slate-900 w-full max-w-[210mm] p-8 sm:p-12 shadow-2xl rounded-sm font-sans flex flex-col justify-between border border-slate-200">
+                    <div class="print-page bg-white text-slate-900 w-full max-w-[210mm] px-6 py-4 shadow-2xl rounded-sm font-sans flex flex-col justify-between border border-slate-200">
                         <div>
-                            <div class="flex justify-between items-start pb-4 border-b-2 border-slate-800">
+                            <div class="flex justify-between items-start pb-2 border-b-2 border-slate-800">
                                 <div>
-                                    <h1 class="text-3xl font-black text-purple-950 tracking-tight flex items-center gap-2">SUPPLY <span class="text-purple-700">${first.customer || 'SHARP'}</span></h1>
-                                    <p class="text-sm font-bold text-slate-700 mt-2">LOCATION: <span class="text-purple-900 font-black">${loc}</span></p>
+                                    <h1 class="text-2xl font-black text-purple-950 tracking-tight flex items-center gap-2">SUPPLY <span class="text-purple-700">${first.customer || 'SHARP'}</span></h1>
+                                    <p class="text-xs font-bold text-slate-700 mt-1">LOCATION: <span class="text-purple-900 font-black">${loc}</span></p>
                                 </div>
-                                <div class="text-center"><svg id="${svgId}" class="max-h-16"></svg></div>
+                                <div class="text-center"><svg id="${svgId}" class="max-h-12"></svg></div>
                             </div>
-                            <div class="text-right my-3"><span class="text-xs font-semibold text-slate-600">จำนวนทั้งหมด ${locItems.length} รายการ</span></div>
-                            <table class="w-full text-xs text-left border-collapse border border-slate-900 mt-2">
+                            <div class="text-right my-2"><span class="text-[11px] font-semibold text-slate-600">จำนวนทั้งหมด ${locItems.length} รายการ</span></div>
+                            <table class="w-full text-[11px] text-left border-collapse border border-slate-900 mt-1">
                                 <thead>
                                     <tr class="bg-slate-50 text-slate-900 font-bold border-b border-slate-900 uppercase">
-                                        <th class="p-2.5 border-r border-slate-900 text-center w-10">ลำดับ</th>
-                                        <th class="p-2.5 border-r border-slate-900">MATERIAL</th>
-                                        <th class="p-2.5 border-r border-slate-900">DESCRIPTION</th>
-                                        <th class="p-2.5 border-r border-slate-900 text-center w-16">QUANTITY</th>
-                                        <th class="p-2.5 border-r border-slate-900 text-center w-14">UNIT</th>
-                                        <th class="p-2.5 border-r border-slate-900 text-center w-14">OUT</th>
-                                        <th class="p-2.5 border-r border-slate-900 text-center w-14">OUT</th>
-                                        <th class="p-2.5 border-r border-slate-900 text-center w-14">OUT</th>
-                                        <th class="p-2.5 text-center w-14">OUT</th>
+                                        <th class="p-2 border-r border-slate-900 text-center w-8">ลำดับ</th>
+                                        <th class="p-2 border-r border-slate-900">MATERIAL</th>
+                                        <th class="p-2 border-r border-slate-900">DESCRIPTION</th>
+                                        <th class="p-2 border-r border-slate-900 text-center w-14">QUANTITY</th>
+                                        <th class="p-2 border-r border-slate-900 text-center w-12">UNIT</th>
+                                        <th class="p-2 border-r border-slate-900 text-center w-12">OUT</th>
+                                        <th class="p-2 border-r border-slate-900 text-center w-12">OUT</th>
+                                        <th class="p-2 border-r border-slate-900 text-center w-12">OUT</th>
+                                        <th class="p-2 border-r border-slate-900 text-center w-12">OUT</th>
+                                        <th class="p-2 text-center w-12">OUT</th>
                                     </tr>
                                 </thead>
                                 <tbody class="divide-y divide-slate-900">${rows}</tbody>
                                 <tfoot>
                                     <tr class="border-t-2 border-slate-900 font-bold bg-slate-50">
-                                        <td colspan="3" class="p-2.5 text-right border-r border-slate-900 uppercase">รวมทั้งหมด (TOTAL):</td>
-                                        <td class="p-2.5 text-center border-r border-slate-900">${total}</td>
-                                        <td class="p-2.5 text-center border-r border-slate-900">-</td>
-                                        <td class="p-2.5 text-center border-r border-slate-900"></td>
-                                        <td class="p-2.5 text-center border-r border-slate-900"></td>
-                                        <td class="p-2.5 text-center border-r border-slate-900"></td>
-                                        <td class="p-2.5 text-center"></td>
+                                        <td colspan="3" class="p-2 text-right border-r border-slate-900 uppercase">รวมทั้งหมด (TOTAL):</td>
+                                        <td class="p-2 text-center border-r border-slate-900">${total}</td>
+                                        <td class="p-2 text-center border-r border-slate-900">-</td>
+                                        <td class="p-2 text-center border-r border-slate-900"></td>
+                                        <td class="p-2 text-center border-r border-slate-900"></td>
+                                        <td class="p-2 text-center border-r border-slate-900"></td>
+                                        <td class="p-2 text-center border-r border-slate-900"></td>
+                                        <td class="p-2 text-center"></td>
                                     </tr>
                                 </tfoot>
                             </table>
                         </div>
-                        <div class="pt-3 border-t border-slate-400 flex justify-between items-center text-[10px] text-slate-600 font-bold uppercase mt-auto">
+                        <div class="pt-2 border-t border-slate-400 flex justify-between items-center text-[10px] text-slate-600 font-bold uppercase mt-auto">
                             <span>SYSTEM GENERATED DOC: SUPPLY WMS</span><span>DATE PRINTED: ${todayStr}</span>
                         </div>
                     </div>
@@ -1902,7 +1909,7 @@
 
                 setTimeout(() => {
                     try {
-                        JsBarcode(`#${svgId}`, bcVal, { format: "CODE128", width: 1.8, height: 45, displayValue: true, fontSize: 12, margin: 0 });
+                        JsBarcode(`#${svgId}`, bcVal, { format: "CODE128", width: 1.5, height: 35, displayValue: true, fontSize: 11, margin: 0 });
                     } catch (e) { console.error(e); }
                 }, 50);
             });
