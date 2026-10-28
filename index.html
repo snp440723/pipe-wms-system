@@ -1198,7 +1198,8 @@
                     if (map[key]) map[key].quantity -= Number(out.quantity);
                 }
             });
-            return Object.values(map);
+            // กรองเฉพาะรายการที่จำนวนมากกว่า 0 ออกมาแสดง
+            return Object.values(map).filter(item => item.quantity > 0);
         }
 
         function processRawmatOutboundScan() {
@@ -1310,7 +1311,7 @@
             const tbody = document.getElementById('rm_print_tbody');
             if (!tbody) return;
             const query = (document.getElementById('rm_print_search')?.value || '').toLowerCase();
-            const list = rawmatInboundData; 
+            const list = getRawmatDashboardStockList(); // ใช้เฉพาะรายการที่ยอดคงเหลือมากกว่า 0
             tbody.innerHTML = list.map((item, idx) => {
                 const match = (item.id && item.id.toLowerCase().includes(query)) || item.material.toLowerCase().includes(query) || item.description.toLowerCase().includes(query) || item.location.toLowerCase().includes(query);
                 return `
@@ -1340,7 +1341,7 @@
 
         function updateRawmatMultiPrintPreview() {
             const selectedIndices = Array.from(document.querySelectorAll('.rm-print-checkbox:checked')).map(cb => parseInt(cb.value));
-            const stockList = rawmatInboundData;
+            const stockList = getRawmatDashboardStockList();
             const container = document.getElementById('rawmat-print-section');
             if (!container) return;
             container.innerHTML = '';
