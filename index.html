@@ -446,6 +446,7 @@
                                 </div>
                             </div>
                             <div class="flex justify-end space-x-3 pt-3">
+                                <button type="button" onclick="cancelOutbound()" class="px-6 py-2.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded-xl font-bold transition">ยกเลิก</button>
                                 <button type="submit" class="px-6 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-bold transition">SAVE (บันทึกการเบิก)</button>
                             </div>
                         </form>
@@ -569,7 +570,7 @@
                     <div class="flex items-center justify-between border-b pb-4 border-slate-200 no-print">
                         <div>
                             <h2 class="text-2xl font-bold text-slate-800">RAW MATERIAL PRINT</h2>
-                            <p class="text-xs text-slate-500 mt-1">1 รายการสินค้า = 1 ใบ Tag (พิมพ์อัตโนมัติ 6 ใบต่อ 1 หน้า A4)</p>
+                            <p class="text-xs text-slate-500 mt-1">1 รายการสินค้า = 1 ใบ Tag (แก้จำนวนบน Tag แล้วแบ่งเป็นหลายใบได้ | พิมพ์อัตโนมัติ 6 ใบต่อ 1 หน้า A4)</p>
                         </div>
                         <button onclick="printFromArea('print-section')" class="px-5 py-2.5 bg-purple-700 hover:bg-purple-600 text-white rounded-xl text-xs font-bold transition shadow-md flex items-center space-x-2">
                             <i data-lucide="printer" class="w-4 h-4"></i>
@@ -608,6 +609,7 @@
                             </table>
                         </div>
                     </div>
+                    <div id="tag-qty-editor" class="no-print"></div>
                     <div id="print-section"></div>
                 </div>
 
@@ -913,9 +915,12 @@
                                         <label class="block text-xs font-bold text-slate-700 uppercase mb-1.5">NEW LOCATION *</label>
                                         <input type="text" id="sup_putaway_new_location" placeholder="เช่น SH-01-05" class="w-full px-4 py-3 rounded-xl border border-amber-300 focus:ring-2 focus:ring-amber-500 outline-none text-base bg-white font-bold text-slate-900 shadow-sm uppercase">
                                     </div>
-                                    <div>
+                                    <div class="flex flex-col gap-2">
                                         <button onclick="confirmSupplyPutawaySave()" class="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs uppercase rounded-xl shadow-lg transition-all flex items-center justify-center gap-2">
                                             <i class="fa-solid fa-floppy-disk"></i> SAVE (บันทึกย้าย Location)
+                                        </button>
+                                        <button type="button" onclick="cancelSupplyPutaway()" class="w-full py-3 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 font-bold text-xs uppercase rounded-xl transition-all flex items-center justify-center gap-2">
+                                            <i class="fa-solid fa-xmark"></i> ยกเลิก
                                         </button>
                                     </div>
                                 </div>
@@ -1325,6 +1330,18 @@
             document.getElementById('outbound-step-2').classList.remove('hidden');
         }
 
+        // ยกเลิกการเบิก: ล้างข้อมูลที่กรอกแล้วกลับไปหน้าสแกนใหม่ (ไม่บันทึกอะไรลง Firebase)
+        function cancelOutbound() {
+            document.getElementById('out-withdraw-qty').value = '';
+            document.getElementById('out-remark').value = '';
+            currentActiveItemForOutbound = null;
+            document.getElementById('outbound-step-2').classList.add('hidden');
+            document.getElementById('outbound-step-1').classList.remove('hidden');
+            const scan = document.getElementById('outbound-scan-input');
+            scan.value = '';
+            scan.focus();
+        }
+
         function submitOutbound(e) {
             e.preventDefault();
             const qty = parseInt(document.getElementById('out-withdraw-qty').value);
@@ -1358,11 +1375,11 @@
                 return `
                     <tr class="hover:bg-slate-50 border-b ${matchQuery ? '' : 'hidden'}">
                         <td class="p-3.5 text-center"><input type="checkbox" class="print-item-checkbox w-4 h-4 text-purple-600 rounded border-slate-300" value="${index}" onchange="updateMultiPrintPreview()"></td>
-                        <td class="p-3.5 font-mono font-bold text-purple-700">${item.id || '-'}</td>
-                        <td class="p-3.5 font-mono font-bold">${item.material}</td>
+                        <td class="p-3.5 font-mono font-normal text-purple-700">${item.id || '-'}</td>
+                        <td class="p-3.5 font-mono font-normal">${item.material}</td>
                         <td class="p-3.5">${item.description}</td>
                         <td class="p-3.5">${item.location}</td>
-                        <td class="p-3.5 text-center font-extrabold text-black">${item.quantity}</td>
+                        <td class="p-3.5 text-center font-normal text-black">${item.quantity}</td>
                         <td class="p-3.5 text-center font-semibold text-slate-600">${item.unit || 'PC.'}</td>
                     </tr>
                 `;
@@ -1378,13 +1395,87 @@
             updateMultiPrintPreview();
         }
 
+        // ===== แก้ไขจำนวน Q'ty บน Tag (ไม่กระทบยอดคงเหลือใน Location / Firebase) =====
+        let tagSplitMap = {};   // key รายการ -> [จำนวนบน Tag แต่ละใบ] (ผลรวม = ยอดคงเหลือใน Location)
+        let tagEditorKeys = [];
+        function tagKeyOf(item) { return `${item.material}_${item.description}_${item.location}`; }
+        function getTagQtys(item) {
+            const key = tagKeyOf(item);
+            const total = Number(item.quantity);
+            const arr = tagSplitMap[key];
+            if (arr && arr.reduce((a, b) => a + b, 0) === total) return arr;
+            delete tagSplitMap[key]; // ยอดจริงเปลี่ยนแล้ว (รับเข้า/เบิกออก) ล้างการแบ่ง Tag เดิม
+            return [total];
+        }
+        function saveTagQty(editorIdx, n) {
+            const key = tagEditorKeys[editorIdx];
+            const item = getDashboardStockList().find(i => tagKeyOf(i) === key);
+            const input = document.getElementById(`tagq-${editorIdx}-${n}`);
+            if (!item || !input) return;
+            const total = Number(item.quantity);
+            const v = Number(input.value);
+            if (!Number.isInteger(v) || v < 1) { showToast('กรุณาระบุจำนวนเป็นตัวเลขตั้งแต่ 1 ขึ้นไป', 'warning'); return; }
+            if (v > total) { showToast(`จำนวนบน Tag เกินยอดคงเหลือใน Location (${total})`, 'warning'); return; }
+            const qtys = [...getTagQtys(item)];
+            const cur = qtys[n];
+            if (v === cur) { showToast('จำนวนไม่เปลี่ยนแปลง', 'warning'); return; }
+            if (v < cur) {
+                qtys[n] = v;
+                qtys.push(cur - v);            // เพิ่ม Tag ใบใหม่อัตโนมัติด้วยจำนวนที่เหลือ
+            } else {
+                let need = v - cur;            // เพิ่มจำนวน: ดึงจาก Tag ใบอื่น เริ่มจากใบท้ายสุด
+                qtys[n] = v;
+                for (let k = qtys.length - 1; k >= 0 && need > 0; k--) {
+                    if (k === n) continue;
+                    const take = Math.min(qtys[k], need);
+                    qtys[k] -= take; need -= take;
+                }
+                for (let k = qtys.length - 1; k >= 0; k--) if (qtys[k] === 0) qtys.splice(k, 1);
+            }
+            tagSplitMap[key] = qtys;
+            showToast(qtys.length > 1 ? `บันทึกแล้ว: แบ่งเป็น ${qtys.length} Tag (${qtys.join(' + ')})` : 'บันทึกแล้ว');
+            updateMultiPrintPreview();
+        }
+
         function updateMultiPrintPreview() {
             const selectedIndices = Array.from(document.querySelectorAll('.print-item-checkbox:checked')).map(cb => parseInt(cb.value));
             const stockList = getDashboardStockList();
             const container = document.getElementById('print-section');
             if (!container) return;
             container.innerHTML = '';
-            const tagsToPrint = selectedIndices.map(idx => stockList[idx]).filter(item => item && item.quantity > 0);
+            const selectedItems = selectedIndices.map(idx => stockList[idx]).filter(item => item && item.quantity > 0);
+
+            // ขยายเป็น Tag ตามจำนวนที่แก้ไข (1 รายการอาจมีหลายใบ) + สร้างตัวแก้ไขจำนวนบน Tag
+            const tagsToPrint = [];
+            tagEditorKeys = [];
+            let editorHtml = '';
+            selectedItems.forEach(item => {
+                const qtys = getTagQtys(item);
+                const eIdx = tagEditorKeys.push(tagKeyOf(item)) - 1;
+                editorHtml += `
+                    <div class="border border-slate-200 rounded-xl p-3 bg-slate-50/60 space-y-2">
+                        <div class="text-xs text-slate-600"><span class="font-mono font-bold text-slate-800">${slsEsc(item.material)}</span> · ${slsEsc(item.description)} · <span class="font-semibold">${slsEsc(item.location)}</span> · ยอดคงเหลือใน Location: <span class="font-bold text-black">${slsEsc(item.quantity)}</span></div>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">` +
+                    qtys.map((q, n) => `
+                            <div class="flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-3 py-2">
+                                <span class="text-[11px] font-bold text-slate-500 w-20 shrink-0">Tag ใบที่ ${n + 1}/${qtys.length}</span>
+                                <input type="number" min="1" max="${slsEsc(item.quantity)}" value="${q}" id="tagq-${eIdx}-${n}" onkeydown="if(event.key==='Enter'){saveTagQty(${eIdx}, ${n});}" class="w-24 px-2 py-1 text-xs rounded-md border border-slate-300 font-bold text-black outline-none focus:border-purple-500">
+                                <button type="button" onclick="saveTagQty(${eIdx}, ${n})" class="px-3 py-1 bg-purple-700 hover:bg-purple-600 text-white rounded-md text-[11px] font-bold transition">บันทึก</button>
+                            </div>`).join('') + `
+                        </div>
+                    </div>`;
+                qtys.forEach(q => tagsToPrint.push({ ...item, quantity: q }));
+            });
+            const editorEl = document.getElementById('tag-qty-editor');
+            if (editorEl) {
+                editorEl.innerHTML = selectedItems.length ? `
+                    <div class="bg-white rounded-2xl border border-slate-200 card-shadow p-4 space-y-3">
+                        <div>
+                            <div class="font-bold text-slate-800 text-sm">แก้ไขจำนวน Q'ty บน Tag</div>
+                            <div class="text-[11px] text-slate-500 mt-0.5">ลดจำนวนแล้วกด "บันทึก" ระบบจะเพิ่ม Tag ใบใหม่ให้อัตโนมัติด้วยจำนวนที่เหลือ</div>
+                        </div>${editorHtml}
+                    </div>` : '';
+            }
 
             for (let i = 0; i < tagsToPrint.length; i += 6) {
                 const batch = tagsToPrint.slice(i, i + 6);
@@ -1437,15 +1528,16 @@
 
         function renderDashboard() {
             const query = (document.getElementById('dash-search-input')?.value || '').toLowerCase();
-            const list = getDashboardStockList().filter(row => row.material.toLowerCase().includes(query) || row.description.toLowerCase().includes(query));
+            // ไม่แสดงรายการที่ยอดคงเหลือเป็น 0 แล้ว
+            const list = getDashboardStockList().filter(row => Number(row.quantity) !== 0 && (row.material.toLowerCase().includes(query) || row.description.toLowerCase().includes(query)));
             document.getElementById('dash-stock-tbody').innerHTML = list.map(row => `
                 <tr class="hover:bg-slate-50 border-b">
-                    <td class="p-3.5 font-bold font-mono">${row.material}</td>
+                    <td class="p-3.5 font-normal font-mono">${row.material}</td>
                     <td class="p-3.5">${row.description}</td>
-                    <td class="p-3.5 text-center font-extrabold text-black">${row.quantity}</td>
+                    <td class="p-3.5 text-center font-normal text-black">${row.quantity}</td>
                     <td class="p-3.5 text-center font-semibold text-slate-600">${row.unit || 'PC.'}</td>
                     <td class="p-3.5 font-semibold">${row.location}</td>
-                    <td class="p-3.5 text-right font-semibold text-black">${row.date || '-'}</td>
+                    <td class="p-3.5 text-right font-normal text-black">${row.date || '-'}</td>
                 </tr>
             `).join('');
         }
@@ -1456,13 +1548,13 @@
             if (query) sorted = sorted.filter(item => item.material.toLowerCase().includes(query) || item.description.toLowerCase().includes(query));
             document.getElementById('inbound-history-tbody').innerHTML = sorted.map(item => `
                 <tr class="hover:bg-slate-50 border-b">
-                    <td class="p-3.5 font-bold font-mono">${item.material}</td>
+                    <td class="p-3.5 font-normal font-mono">${item.material}</td>
                     <td class="p-3.5">${item.description}</td>
-                    <td class="p-3.5 text-center font-bold text-black">${item.quantity}</td>
+                    <td class="p-3.5 text-center font-normal text-black">${item.quantity}</td>
                     <td class="p-3.5 text-center font-semibold text-slate-600">${item.unit || 'PC.'}</td>
                     <td class="p-3.5 font-semibold">${item.location}</td>
                     <td class="p-3.5 font-mono text-slate-400 text-[11px]">${item.id}</td>
-                    <td class="p-3.5 text-right font-semibold text-black">${item.date}</td>
+                    <td class="p-3.5 text-right font-normal text-black">${item.date}</td>
                 </tr>
             `).join('');
         }
@@ -1482,14 +1574,14 @@
                 const loc = matchInbound.location || '-';
                 return `
                     <tr class="hover:bg-slate-50 border-b">
-                        <td class="p-3.5 font-bold font-mono">${item.material}</td>
+                        <td class="p-3.5 font-normal font-mono">${item.material}</td>
                         <td class="p-3.5">${item.description}</td>
-                        <td class="p-3.5 text-center font-bold text-black">${item.quantity}</td>
+                        <td class="p-3.5 text-center font-normal text-black">${item.quantity}</td>
                         <td class="p-3.5 text-center font-semibold text-slate-600">${item.unit || 'PC.'}</td>
                         <td class="p-3.5 font-semibold">${loc}</td>
                         <td class="p-3.5 font-mono text-slate-500 text-[11px]">${item.id}</td>
                         <td class="p-3.5"><span class="px-2 py-0.5 bg-amber-50 text-amber-700 font-semibold rounded text-[11px] border">${item.remark}</span></td>
-                        <td class="p-3.5 text-right font-semibold text-black">${item.date}</td>
+                        <td class="p-3.5 text-right font-normal text-black">${item.date}</td>
                     </tr>
                 `;
             }).join('');
@@ -1497,7 +1589,7 @@
 
         function exportDashboardCSV() {
             let csvContent = "data:text/csv;charset=utf-8,\uFEFFMATERIAL,DESCRIPTION,QUANTITY,UNIT,LOCATION,DATE / TIME\n";
-            getDashboardStockList().forEach(row => { csvContent += `"${row.material}","${row.description}",${row.quantity},"${row.unit || 'PC.'}","${row.location}","${row.date || '-'}"\n`; });
+            getDashboardStockList().filter(row => Number(row.quantity) !== 0).forEach(row => { csvContent += `"${row.material}","${row.description}",${row.quantity},"${row.unit || 'PC.'}","${row.location}","${row.date || '-'}"\n`; });
             const link = document.createElement("a");
             link.setAttribute("href", encodeURI(csvContent));
             link.setAttribute("download", "dashboard_stock.csv");
@@ -2130,6 +2222,16 @@
             document.getElementById('sup_putaway_new_location').value = '';
             if (resultContainer) resultContainer.classList.remove('hidden');
             setTimeout(() => document.getElementById('sup_putaway_new_location')?.focus(), 100);
+        }
+
+        // ยกเลิกการย้าย Location: ล้างข้อมูลที่ค้นหา/กรอกไว้ กลับไปช่องสแกนใหม่ (ไม่บันทึกอะไรลง Firebase)
+        function cancelSupplyPutaway() {
+            document.getElementById('sup_putaway_new_location').value = '';
+            document.getElementById('sup_putaway_result_container').classList.add('hidden');
+            supCurrentPutawayMatchedItems = [];
+            const input = document.getElementById('sup_putaway_barcode_input');
+            input.value = '';
+            input.focus();
         }
 
         async function confirmSupplyPutawaySave() {
