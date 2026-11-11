@@ -1395,6 +1395,14 @@
             updateMultiPrintPreview();
         }
 
+        // แปลงวันที่เป็น วัน/เดือน/ปี (DD/MM/YYYY) สำหรับ Tag เช่น 2026-09-14 -> 14/09/2026
+        function formatTagDate(v) {
+            if (!v) return '-';
+            const m = String(v).match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+            if (m) return `${m[3].padStart(2, '0')}/${m[2].padStart(2, '0')}/${m[1]}`;
+            return v;
+        }
+
         // ===== แก้ไขจำนวน Q'ty บน Tag (ไม่กระทบยอดคงเหลือใน Location / Firebase) =====
         let tagSplitMap = {};   // key รายการ -> [จำนวนบน Tag แต่ละใบ] (ผลรวม = ยอดคงเหลือใน Location)
         let tagEditorKeys = [];
@@ -1502,7 +1510,7 @@
                                     <tr><th class="border border-black p-0.5 font-bold w-[13%]">IN</th><th class="border border-black p-0.5 font-bold w-[13%]">OUT</th></tr>
                                 </thead>
                                 <tbody>
-                                    <tr class="h-[17px]"><td class="border border-black font-semibold">${tagItem.date || '-'}</td><td class="border border-black font-bold">✓</td><td class="border border-black"></td><td class="border border-black font-bold">${tagItem.quantity}</td><td class="border border-black"></td><td class="border border-black font-bold">${tagItem.quantity}</td></tr>
+                                    <tr class="h-[17px]"><td class="border border-black font-semibold">${formatTagDate(tagItem.date)}</td><td class="border border-black font-bold">✓</td><td class="border border-black"></td><td class="border border-black font-bold">${tagItem.quantity}</td><td class="border border-black"></td><td class="border border-black font-bold">${tagItem.quantity}</td></tr>
                                     ${Array(9).fill(0).map(() => `<tr class="h-[17px]"><td class="border border-black"></td><td class="border border-black"></td><td class="border border-black"></td><td class="border border-black"></td><td class="border border-black"></td><td class="border border-black"></td></tr>`).join('')}
                                 </tbody>
                             </table>
