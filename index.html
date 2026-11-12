@@ -1238,8 +1238,18 @@
             return prefix + String(maxSeq + 1).padStart(4, '0');
         }
 
+        // รองรับ ID ที่ต่อท้ายด้วยเลข 2 หลัก (เช่น ...-02) โดยแปลงกลับเป็น QR CODE ID ต้นฉบับ
+        function normalizeTagScan(v) {
+            const q = String(v || '').trim();
+            const m = q.match(/^(.*)-(\d{2})$/);
+            if (m && inboundData.some(i => String(i.id).toLowerCase() === m[1].toLowerCase())) return m[1];
+            return q;
+        }
+        // Tag ที่แบ่งใบทุกใบใช้ QR CODE ID เดิมเหมือนกัน (ไม่รันเลขใหม่)
+        function splitTagId(baseId, n) { return baseId; }
+
         function checkPutawayQR() {
-            const qr = document.getElementById('putaway-qr-input').value.trim();
+            const qr = normalizeTagScan(document.getElementById('putaway-qr-input').value);
             const found = inboundData.find(item => item.id.toLowerCase() === qr.toLowerCase() || item.material.toLowerCase() === qr.toLowerCase());
             if (!found) {
                 showToast('ไม่พบ QR Code ID นี้ในระบบ!', 'warning');
@@ -1257,7 +1267,7 @@
         }
 
         function submitPutaway() {
-            const qr = document.getElementById('putaway-qr-input').value.trim();
+            const qr = normalizeTagScan(document.getElementById('putaway-qr-input').value);
             const newLoc = document.getElementById('putaway-loc-input').value.trim();
             if (!currentPutawayItem) {
                 const found = inboundData.find(item => item.id.toLowerCase() === qr.toLowerCase() || item.material.toLowerCase() === qr.toLowerCase());
@@ -1275,17 +1285,21 @@
             });
         }
 
+        // รวมยอดเฉพาะรายการที่ Material + Description + Location + วันที่รับเข้า เหมือนกันเท่านั้น
+        // (วันที่ต่างกันจะแยกเป็นคนละแถว แม้ Location และ Material เดียวกัน / วันเดียวกันให้รวมยอด)
+        function stockKeyOf(item) { return `${item.material}_${item.description}_${item.location}_${item.date || ''}`; }
+
         function getDashboardStockList() {
             const stockMap = {};
             inboundData.forEach(item => {
-                const key = `${item.material}_${item.description}_${item.location}`;
+                const key = stockKeyOf(item);
                 if (!stockMap[key]) stockMap[key] = { ...item, quantity: 0 };
                 stockMap[key].quantity += Number(item.quantity);
             });
             outboundData.forEach(out => {
                 const match = inboundData.find(i => i.id === out.id);
                 if (match) {
-                    const key = `${match.material}_${match.description}_${match.location}`;
+                    const key = stockKeyOf(match);
                     if (stockMap[key]) stockMap[key].quantity -= Number(out.quantity);
                 }
             });
@@ -1313,14 +1327,27 @@
             });
         }
 
+        // ยอดคงเหลือที่เบิกได้ = ยอดคงเหลือของแถวเดียวกับใน Dashboard (Material + Description + Location + วันที่รับเข้า)
+        function getOutboundAvailable(found) {
+            const key = stockKeyOf(found);
+            const inQty = inboundData.filter(i => stockKeyOf(i) === key).reduce((sum, i) => sum + Number(i.quantity), 0);
+            const outQty = outboundData.reduce((sum, o) => {
+                const m = inboundData.find(i => i.id === o.id);
+                return (m && stockKeyOf(m) === key) ? sum + Number(o.quantity) : sum;
+            }, 0);
+            return inQty - outQty;
+        }
+
         function processOutboundScan() {
-            const query = document.getElementById('outbound-scan-input').value.trim();
+            const query = normalizeTagScan(document.getElementById('outbound-scan-input').value);
             const found = inboundData.find(item => item.id.toLowerCase() === query.toLowerCase() || item.material.toLowerCase() === query.toLowerCase());
             if (!found) { showToast('ไม่พบข้อมูลรหัสสินค้า!', 'warning'); return; }
-            const totalWithdrawn = outboundData.filter(o => o.id === found.id).reduce((sum, o) => sum + Number(o.quantity), 0);
-            const available = Number(found.quantity) - totalWithdrawn;
+            const available = getOutboundAvailable(found);
             if (available <= 0) { showToast('สินค้ารายการนี้ถูกเบิกหมดแล้ว!', 'warning'); return; }
             currentActiveItemForOutbound = { ...found, available };
+            const qtyInput = document.getElementById('out-withdraw-qty');
+            qtyInput.value = '';
+            qtyInput.max = available;
             document.getElementById('out-qr').innerText = found.id;
             document.getElementById('out-material').innerText = found.material;
             document.getElementById('out-desc').innerText = found.description;
@@ -1344,9 +1371,13 @@
 
         function submitOutbound(e) {
             e.preventDefault();
-            const qty = parseInt(document.getElementById('out-withdraw-qty').value);
+            if (!currentActiveItemForOutbound) return;
+            const qty = Number(document.getElementById('out-withdraw-qty').value);
             const remark = document.getElementById('out-remark').value;
-            if (qty > currentActiveItemForOutbound.available) { showToast('จำนวนที่เบิกเกินกว่ายอดคงเหลือ!', 'warning'); return; }
+            // คำนวณยอดคงเหลือล่าสุดอีกครั้งตอนบันทึก (กันกรณีมีการเบิกจากเครื่องอื่นระหว่างนั้น)
+            const available = getOutboundAvailable(currentActiveItemForOutbound);
+            if (!Number.isInteger(qty) || qty < 1) { showToast('กรุณาระบุจำนวนที่เบิกเป็นตัวเลขตั้งแต่ 1 ขึ้นไป', 'warning'); return; }
+            if (qty > available) { showToast(`เบิกเกินยอดคงเหลือไม่ได้! (คงเหลือ ${available})`, 'warning'); return; }
             const outItem = {
                 id: currentActiveItemForOutbound.id,
                 material: currentActiveItemForOutbound.material,
@@ -1370,7 +1401,8 @@
             if (!tbody) return;
             const query = (document.getElementById('print-search-input')?.value || '').toLowerCase();
             const stockList = getDashboardStockList();
-            tbody.innerHTML = stockList.map((item, index) => {
+            // ไม่แสดงรายการที่ยอดคงเหลือเป็น 0 (ไม่มีของให้พิมพ์ Tag) โดยยังเก็บเลข index เดิมของ stockList ไว้
+            tbody.innerHTML = stockList.map((item, index) => ({ item, index })).filter(x => Number(x.item.quantity) > 0).map(({ item, index }) => {
                 const matchQuery = (item.id && item.id.toLowerCase().includes(query)) || item.material.toLowerCase().includes(query) || item.description.toLowerCase().includes(query) || item.location.toLowerCase().includes(query);
                 return `
                     <tr class="hover:bg-slate-50 border-b ${matchQuery ? '' : 'hidden'}">
@@ -1406,7 +1438,7 @@
         // ===== แก้ไขจำนวน Q'ty บน Tag (ไม่กระทบยอดคงเหลือใน Location / Firebase) =====
         let tagSplitMap = {};   // key รายการ -> [จำนวนบน Tag แต่ละใบ] (ผลรวม = ยอดคงเหลือใน Location)
         let tagEditorKeys = [];
-        function tagKeyOf(item) { return `${item.material}_${item.description}_${item.location}`; }
+        function tagKeyOf(item) { return stockKeyOf(item); }
         function getTagQtys(item) {
             const key = tagKeyOf(item);
             const total = Number(item.quantity);
@@ -1466,13 +1498,13 @@
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">` +
                     qtys.map((q, n) => `
                             <div class="flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-3 py-2">
-                                <span class="text-[11px] font-bold text-slate-500 w-20 shrink-0">Tag ใบที่ ${n + 1}/${qtys.length}</span>
+                                <span class="text-[11px] font-bold text-slate-500 shrink-0">Tag ใบที่ ${n + 1}/${qtys.length}</span>
                                 <input type="number" min="1" max="${slsEsc(item.quantity)}" value="${q}" id="tagq-${eIdx}-${n}" onkeydown="if(event.key==='Enter'){saveTagQty(${eIdx}, ${n});}" class="w-24 px-2 py-1 text-xs rounded-md border border-slate-300 font-bold text-black outline-none focus:border-purple-500">
                                 <button type="button" onclick="saveTagQty(${eIdx}, ${n})" class="px-3 py-1 bg-purple-700 hover:bg-purple-600 text-white rounded-md text-[11px] font-bold transition">บันทึก</button>
                             </div>`).join('') + `
                         </div>
                     </div>`;
-                qtys.forEach(q => tagsToPrint.push({ ...item, quantity: q }));
+                qtys.forEach((q, n) => tagsToPrint.push({ ...item, quantity: q, id: splitTagId(item.id, n) }));
             });
             const editorEl = document.getElementById('tag-qty-editor');
             if (editorEl) {
